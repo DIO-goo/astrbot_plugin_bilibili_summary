@@ -1,0 +1,83 @@
+{
+    "openai_api_key": {
+        "description": "OpenAI API密钥",
+        "type": "string",
+        "default": "",
+        "hint": "用于调用LLM生成视频总结的API密钥",
+        "obvious_hint": true
+    },
+    "openai_api_url": {
+        "description": "OpenAI API地址",
+        "type": "string",
+        "default": "https://api.openai.com/v1/chat/completions",
+        "hint": "OpenAI兼容的API接口地址"
+    },
+    "openai_model": {
+        "description": "使用的模型",
+        "type": "string",
+        "default": "gpt-3.5-turbo",
+        "hint": "要使用的AI模型名称"
+    },
+    "bilibili_sessdata": {
+        "description": "Bilibili SESSDATA Cookie",
+        "type": "string",
+        "default": "",
+        "hint": "从浏览器Cookie中获取的SESSDATA值，用于访问需要登录的API",
+        "obvious_hint": true
+    },
+    "request_interval": {
+        "description": "请求间隔(秒)",
+        "type": "float",
+        "default": 2.0,
+        "hint": "两次API请求之间的间隔时间，避免触发风控"
+    },
+    "max_subtitle_length": {
+        "description": "最大字幕长度",
+        "type": "int",
+        "default": 8000,
+        "hint": "提交给LLM的字幕最大字符数，超过会被截断"
+    },
+    "summary_prompt": {
+        "description": "总结提示词",
+        "type": "text",
+        "default": "请根据以下视频字幕和简介，生成一个简洁明了的视频内容总结。总结应该包含视频的主要内容、关键信息和要点。请用中文回答。",
+        "hint": "用于指导LLM生成总结的提示词"
+    },
+    "enable_audio_transcription": {
+        "description": "启用音频转文字",
+        "type": "bool",
+        "default": true,
+        "hint": "当视频没有字幕时，自动提取音频并转换为文字"
+    },
+    "audio_extract_duration": {
+        "description": "音频提取时长(秒)",
+        "type": "int",
+        "default": 300,
+        "hint": "最多提取多少秒的音频进行转写，避免处理过长视频。0表示不限制"
+    },
+    "whisper_api_key": {
+        "description": "Whisper API密钥",
+        "type": "string",
+        "default": "",
+        "hint": "用于语音转文字的API密钥，独立于OpenAI API密钥",
+        "obvious_hint": true
+    },
+    "whisper_api_url": {
+        "description": "Whisper API地址",
+        "type": "string",
+        "default": "https://api.openai.com/v1/audio/transcriptions",
+        "hint": "语音转文字API接口地址，兼容OpenAI Whisper格式"
+    },
+    "whisper_model": {
+        "description": "Whisper模型",
+        "type": "string",
+        "default": "whisper-1",
+        "hint": "使用的语音识别模型名称"
+    },
+    "audio_language": {
+        "description": "音频语言",
+        "type": "string",
+        "default": "zh",
+        "hint": "音频的主要语言，用于提高识别准确率。zh=中文, en=英文"
+    }
+}

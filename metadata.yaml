@@ -1,0 +1,6 @@
+name: astrbot_plugin_bilibili_summary
+desc: Bilibili视频字幕总结插件，自动检测消息中的B站视频链接并生成内容总结。支持无字幕视频的音频转文字功能
+help: 直接发送或转发包含bilibili视频链接、BV号、AV号的消息，插件会自动识别并生成视频总结。支持完整链接、短链接、小程序卡片等多种格式
+version: v1.2.0
+author: VincenttHo
+repo: https://github.com/VincenttHo/astrbot_plugin_bilibili_summary
