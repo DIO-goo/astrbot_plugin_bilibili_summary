@@ -494,9 +494,46 @@ class BilibiliSummaryPlugin(Star):
             # 生成总结
             summary = await self.generate_summary(title, desc, subtitle_text)
             if summary:
-                # 构建完整的结果信息
-                result_message = f"📺 视频标题：{title}\n\n📋 内容总结：\n{summary}"
-                yield event.plain_result(result_message)
+                # 分段发送总结,避免单条消息过长被截断
+                # 消息平台通常限制单条消息长度(如QQ约4000字符)
+                header = f"📺 视频标题：{title}\n\n📋 内容总结：\n"
+                
+                # 计算每段的最大长度(预留标题等overhead)
+                max_chunk_size = 1500  # 保守设置为1500字符一段
+                
+                # 如果总结较短,直接发送
+                if len(summary) + len(header) <= 2000:
+                    result_message = header + summary
+                    yield event.plain_result(result_message)
+                else:
+                    # 分段发送
+                    # 先发送标题
+                    yield event.plain_result(header.rstrip())
+                    
+                    # 将总结按段落分割(尽量保持段落完整性)
+                    paragraphs = summary.split('\n\n')
+                    current_chunk = ""
+                    part_num = 1
+                    
+                    for para in paragraphs:
+                        # 如果当前段落加入后会超长,先发送当前chunk
+                        if len(current_chunk) + len(para) + 2 > max_chunk_size and current_chunk:
+                            yield event.plain_result(f"【{part_num}/{len(paragraphs)}】\n{current_chunk}")
+                            current_chunk = para
+                            part_num += 1
+                        else:
+                            if current_chunk:
+                                current_chunk += "\n\n" + para
+                            else:
+                                current_chunk = para
+                    
+                    # 发送最后一段
+                    if current_chunk:
+                        # 如果只有一段,不显示分段标记
+                        if part_num == 1:
+                            yield event.plain_result(current_chunk)
+                        else:
+                            yield event.plain_result(f"【{part_num}】\n{current_chunk}")
             else:
                 yield event.plain_result("❌ 生成总结失败")
 
