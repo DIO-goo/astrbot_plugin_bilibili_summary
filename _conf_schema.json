@@ -18,11 +18,11 @@
         "default": "gpt-3.5-turbo",
         "hint": "要使用的AI模型名称"
     },
-    "bilibili_sessdata": {
-        "description": "Bilibili SESSDATA Cookie",
-        "type": "string",
+    "bilibili_cookie": {
+        "description": "Bilibili Cookie (Netscape格式)",
+        "type": "text",
         "default": "",
-        "hint": "从浏览器Cookie中获取的SESSDATA值，用于访问需要登录的API",
+        "hint": "粘贴Netscape格式的Cookie文本。每行格式：域名[TAB]flag[TAB]路径[TAB]secure[TAB]过期时间[TAB]名称[TAB]值。可通过浏览器插件(如Get cookies.txt LOCALLY)导出",
         "obvious_hint": true
     },
     "request_interval": {
@@ -40,7 +40,7 @@
     "summary_prompt": {
         "description": "总结提示词",
         "type": "text",
-        "default": "请根据以下视频字幕和简介，生成一个简洁明了的视频内容总结。总结应该包含视频的主要内容、关键信息和要点。请用中文回答。",
+        "default": "请根据以下视频字幕、简介和热门评论，生成一个详细完整的视频内容总结。\n\n要求：\n1. 总结应该包含视频的所有主要内容、关键信息和要点\n2. 保持逻辑清晰，分点阐述\n3. 尽可能详细和完整，不要遗漏重要信息\n4. 如果有热门评论，可以适当参考评论中的观点和讨论\n5. 请用中文回答\n6. 请确保总结完整，不要中途截断",
         "hint": "用于指导LLM生成总结的提示词"
     },
     "enable_audio_transcription": {

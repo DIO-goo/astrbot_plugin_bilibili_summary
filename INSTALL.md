@@ -6,21 +6,16 @@
 
 ### 自动安装（推荐）
 
-当您在 AstrBot 中安装或重载本插件时，AstrBot 会自动读取 `requirements.txt` 文件并安装所需的 Python 依赖包。
+在 AstrBot 中安装或重载本插件时，AstrBot 会自动读取 `requirements.txt` 并安装依赖。
 
 ### 手动安装
 
-如果需要手动安装 Python 依赖，请在插件目录下执行：
-
 ```bash
-# 进入插件目录
 cd AstrBot/data/plugins/astrbot_plugin_bilibili_summary
-
-# 安装依赖
 pip install -r requirements.txt
 ```
 
-或者使用国内镜像源加速：
+国内镜像加速：
 
 ```bash
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -28,180 +23,110 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ### 依赖包说明
 
-- **aiohttp**: 异步HTTP客户端，用于网络请求
-- **pydub**: 音频处理库（v1.1.0新增）
+- **aiohttp**: 异步 HTTP 客户端，用于调用 B站 API 和下载资源
 
-## 2. 系统依赖安装（音频转文字功能必需）
+## 2. FFmpeg 安装（音频转文字功能需要）
 
-### FFmpeg 安装
+如果不需要音频转文字功能，可以跳过此步骤。
 
-音频转文字功能需要 FFmpeg 来提取视频中的音频。
+### Windows
 
-**📖 详细的 FFmpeg 安装教程请查看 → [FFMPEG_INSTALL_GUIDE.md](FFMPEG_INSTALL_GUIDE.md)**
+**方法一：包管理器（推荐）**
 
-以下是快速安装方法：
-
-#### Windows 系统
-
-**方法一：使用包管理器（推荐）**
-
-1. 安装 [Chocolatey](https://chocolatey.org/install)
-2. 以管理员身份运行 PowerShell：
-   ```powershell
-   choco install ffmpeg
-   ```
+```powershell
+# 安装 Chocolatey 后，以管理员身份运行：
+choco install ffmpeg
+```
 
 **方法二：手动安装**
 
-1. 访问 [FFmpeg 官网](https://ffmpeg.org/download.html)
-2. 下载 Windows 版本（推荐下载 full 版本）
-3. 解压到合适的位置（如 `C:\ffmpeg`）
-4. 添加到系统环境变量：
-   - 右键"此电脑" → "属性" → "高级系统设置" → "环境变量"
-   - 在"系统变量"中找到 `Path`，点击"编辑"
-   - 添加 FFmpeg 的 bin 目录路径（如 `C:\ffmpeg\bin`）
-   - 点击"确定"保存
+1. 从 [ffmpeg.org](https://ffmpeg.org/download.html) 下载 Windows 版本
+2. 解压到合适位置（如 `C:\ffmpeg`）
+3. 将 `C:\ffmpeg\bin` 添加到系统 PATH 环境变量
+4. 打开新的命令提示符，验证：`ffmpeg -version`
 
-5. 验证安装：打开新的命令提示符窗口，输入：
-   ```cmd
-   ffmpeg -version
-   ```
+### Linux
 
-#### Linux 系统
-
-**Ubuntu/Debian:**
 ```bash
-sudo apt-get update
-sudo apt-get install ffmpeg
-```
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install ffmpeg
 
-**CentOS/RHEL:**
-```bash
-# 启用 EPEL 仓库
-sudo yum install epel-release
-# 安装 FFmpeg
-sudo yum install ffmpeg
-```
+# CentOS/RHEL
+sudo yum install epel-release && sudo yum install ffmpeg
 
-**Fedora:**
-```bash
+# Fedora
 sudo dnf install ffmpeg
 ```
 
-验证安装：
-```bash
-ffmpeg -version
-```
-
-#### macOS 系统
-
-使用 Homebrew 安装：
+### macOS
 
 ```bash
-# 如果没有安装 Homebrew，先安装：
-# /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# 安装 FFmpeg
 brew install ffmpeg
-```
-
-验证安装：
-```bash
-ffmpeg -version
 ```
 
 ## 3. 配置插件
 
-在 AstrBot 管理面板中配置插件：
+在 AstrBot 管理面板中配置：
 
 ### 必需配置
 
-1. **OpenAI API密钥**: 用于调用 LLM 和 Whisper API
+1. **OpenAI API 密钥**: 用于调用 LLM 生成总结
    - 从 [OpenAI Platform](https://platform.openai.com/api-keys) 获取
-   - 或使用兼容 OpenAI 格式的其他服务提供商
+   - 或使用兼容 OpenAI 格式的其他服务
 
-2. **Bilibili SESSDATA**: 用于访问 B站 API
+2. **Bilibili Cookie（Netscape 格式）**: 用于访问 B站 API
+   - 安装浏览器扩展 [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
    - 登录 [bilibili.com](https://www.bilibili.com)
-   - 按 F12 打开开发者工具
-   - 转到"应用程序/Application" → "Cookies" → "https://www.bilibili.com"
-   - 找到 `SESSDATA` 并复制其值
+   - 点击扩展图标，导出当前站点 Cookie
+   - 将全部文本粘贴到插件配置中
 
 ### 音频转文字配置（可选）
 
-- **启用音频转文字**: 默认启用，可以关闭以仅使用字幕
-- **音频提取时长**: 建议设置为 300 秒（5分钟），避免处理过长视频
-- **Whisper API地址**: 默认使用 OpenAI 官方地址
-- **Whisper模型**: 默认 whisper-1
+- **启用音频转文字**: 默认开启
+- **音频提取时长**: 建议 300 秒，避免处理过长视频
+- **Whisper API 地址**: 默认 OpenAI 官方地址
+- **Whisper 模型**: 默认 whisper-1
 - **音频语言**: 默认 zh（中文）
 
 ## 4. 验证安装
 
-### 测试基础功能（字幕总结）
+在聊天中发送一个 B站视频链接，例如：
 
-在 AstrBot 中发送：
 ```
-/bs BV1jv7YzJED2
-```
-
-如果成功返回视频总结，说明基础功能正常。
-
-### 测试音频转文字功能
-
-找一个没有字幕的 B站视频，发送：
-```
-/bs [无字幕视频的BV号]
+https://www.bilibili.com/video/BV1jv7YzJED2
 ```
 
-如果插件提示"正在提取视频音频并转换为文字"，说明音频转文字功能已启用。
+如果成功返回视频总结卡片，说明安装正常。
+
+要测试音频转文字功能，可以发送一个没有字幕的视频链接，插件会自动提取音频并转写。
 
 ## 5. 常见问题
 
+### Q: 提示"获取字幕需要登录"
+**A**: 请确保在插件配置中正确填写了 Netscape 格式的 Bilibili Cookie。Cookie 有有效期，过期后需要重新导出。
+
 ### Q: 提示"未找到 ffmpeg"
-**A**: 请确保已正确安装 FFmpeg 并添加到系统 PATH 环境变量中。安装后需要重启终端或命令提示符。
+**A**: 请安装 FFmpeg 并添加到系统 PATH。安装后需要重启终端。
 
 ### Q: 音频转文字很慢
-**A**: 这是正常现象。音频转文字需要：
-1. 下载视频（取决于网络速度）
-2. 提取音频（取决于视频长度）
-3. 调用 Whisper API（取决于音频长度和 API 响应速度）
-
-建议设置合理的 `audio_extract_duration` 参数。
+**A**: 这是正常现象，需要下载视频、提取音频、调用 Whisper API。建议设置合理的 `音频提取时长`。
 
 ### Q: Whisper API 调用失败
-**A**: 可能的原因：
-- API 密钥不正确或已过期
-- API 配额不足
-- 网络连接问题
-- 音频文件过大（超过 25MB）
-
-### Q: 提示"音频提取失败"
-**A**: 可能的原因：
-- FFmpeg 未正确安装
-- 视频下载失败（网络问题或需要登录权限）
-- 磁盘空间不足
+**A**: 可能原因：API 密钥不正确/过期、配额不足、网络问题、音频文件超过 25MB。
 
 ### Q: Python 依赖安装失败
-**A**: 尝试：
+**A**:
 ```bash
-# 升级 pip
 pip install --upgrade pip
-
-# 使用国内镜像
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 ## 6. 获取帮助
 
-如果遇到问题：
-
-1. 查看 AstrBot 日志：在管理面板的"日志"选项卡中查看详细错误信息
-2. 查看 [项目 README](README.md)
-3. 提交 [GitHub Issue](https://github.com/VincenttHo/astrbot_plugin_bilibili_summary/issues)
-4. 加入 AstrBot QQ群：975206796
+1. 查看 AstrBot 管理面板的"日志"选项卡
+2. 提交 [GitHub Issue](https://github.com/VincenttHo/astrbot_plugin_bilibili_summary/issues)
 
 ## 7. 升级插件
-
-如果从旧版本升级：
 
 ```bash
 cd AstrBot/data/plugins/astrbot_plugin_bilibili_summary
