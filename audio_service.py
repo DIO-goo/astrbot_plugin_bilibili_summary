@@ -8,6 +8,7 @@ import os
 import subprocess
 import tempfile
 import mimetypes
+import uuid
 from typing import Optional
 import aiohttp
 from astrbot.api import logger
@@ -28,7 +29,7 @@ class AudioService:
         try:
             # 创建临时文件
             temp_dir = tempfile.gettempdir()
-            audio_path = os.path.join(temp_dir, f"bilibili_audio_{os.getpid()}.mp3")
+            audio_path = os.path.join(temp_dir, f"bilibili_audio_{uuid.uuid4().hex}.mp3")
             
             logger.info("开始提取音频（使用ffmpeg异步处理）...")
             
@@ -212,7 +213,7 @@ class AudioService:
                                 try:
                                     error_json = json.loads(response_text)
                                     logger.error(f"错误详情: {json.dumps(error_json, ensure_ascii=False)}")
-                                except:
+                                except Exception:
                                     pass
                                 
                                 return None

@@ -6,7 +6,7 @@ import tempfile
 import hashlib
 import time
 from functools import reduce
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, AsyncGenerator
 from urllib.parse import urlparse, parse_qs, urlencode
 import aiohttp
 from astrbot.api.event import filter, AstrMessageEvent
@@ -15,141 +15,6 @@ from astrbot.api import logger, AstrBotConfig
 import astrbot.api.message_components as Comp
 from astrbot.api.event import MessageChain
 from .audio_service import AudioService
-
-# 视频总结卡片HTML模板
-VIDEO_SUMMARY_TEMPLATE = '''
-<div style="
-    font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Helvetica Neue', Arial, sans-serif;
-    width: 100%;
-    min-height: 100%;
-    background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    padding: 40px;
-    color: #ffffff;
-    box-sizing: border-box;
-">
-    <!-- 顶部标题区域 -->
-    <div style="
-        background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
-        border-radius: 20px;
-        padding: 36px;
-        margin-bottom: 32px;
-        box-shadow: 0 8px 24px rgba(233,69,96,0.4);
-    ">
-        <div style="
-            font-size: 42px;
-            font-weight: bold;
-            line-height: 1.5;
-            margin-bottom: 24px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        ">{{ platform_icon }} {{ title }}</div>
-
-        <div style="
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            font-size: 28px;
-            opacity: 0.95;
-        ">
-            <span style="
-                background: rgba(255,255,255,0.25);
-                padding: 10px 22px;
-                border-radius: 30px;
-            ">👤 {{ owner }}</span>
-            <span style="
-                background: rgba(255,255,255,0.25);
-                padding: 10px 22px;
-                border-radius: 30px;
-            ">⏱️ {{ duration }}</span>
-            <span style="
-                background: rgba(255,255,255,0.25);
-                padding: 10px 22px;
-                border-radius: 30px;
-            ">👀 {{ views }}</span>
-            <span style="
-                background: rgba(255,255,255,0.25);
-                padding: 10px 22px;
-                border-radius: 30px;
-            ">👍 {{ likes }}</span>
-        </div>
-    </div>
-
-    <!-- 总结区域 -->
-    <div style="
-        background: rgba(255,255,255,0.08);
-        border-radius: 20px;
-        padding: 36px;
-        margin-bottom: 32px;
-        border: 2px solid rgba(255,255,255,0.1);
-    ">
-        <div style="
-            font-size: 38px;
-            font-weight: bold;
-            margin-bottom: 28px;
-            padding-bottom: 16px;
-            border-bottom: 3px solid #e94560;
-            color: #e94560;
-        ">📋 内容总结</div>
-
-        <div style="
-            font-size: 32px;
-            line-height: 2;
-            word-wrap: break-word;
-            color: #f0f0f0;
-        ">{{ summary_html }}</div>
-    </div>
-
-    <!-- 热门评论区域 -->
-    {% if comments_html %}
-    <div style="
-        background: rgba(255,255,255,0.08);
-        border-radius: 20px;
-        padding: 36px;
-        margin-bottom: 32px;
-        border: 2px solid rgba(255,255,255,0.1);
-    ">
-        <div style="
-            font-size: 38px;
-            font-weight: bold;
-            margin-bottom: 28px;
-            padding-bottom: 16px;
-            border-bottom: 3px solid #5b86e5;
-            color: #5b86e5;
-        ">💬 热门评论</div>
-
-        <div style="
-            font-size: 30px;
-            line-height: 1.9;
-            word-wrap: break-word;
-            color: #d0d0d0;
-        ">{{ comments_html }}</div>
-    </div>
-    {% endif %}
-
-    <!-- 底部统计区域 -->
-    <div style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 28px;
-        color: rgba(255,255,255,0.8);
-        padding: 20px 8px;
-        border-top: 2px solid rgba(255,255,255,0.1);
-    ">
-        <span style="
-            background: rgba(233,69,96,0.2);
-            padding: 14px 28px;
-            border-radius: 30px;
-            color: #ff6b6b;
-        ">📊 字幕：{{ subtitle_length }} 字</span>
-        <span style="
-            background: rgba(233,69,96,0.2);
-            padding: 14px 28px;
-            border-radius: 30px;
-            color: #ff6b6b;
-        ">📝 总结：{{ summary_length }} 字</span>
-    </div>
-</div>
-'''
 
 
 @register(
@@ -198,11 +63,21 @@ class BilibiliSummaryPlugin(Star):
         )
 
         logger.info("视频总结插件: 初始化完成，支持Bilibili视频总结")
-        
+
+        # 加载HTML模板
+        _template_path = os.path.join(os.path.dirname(__file__), 'templates', 'video_summary.html')
+        try:
+            with open(_template_path, 'r', encoding='utf-8') as f:
+                self._video_summary_template = f.read()
+        except FileNotFoundError:
+            logger.error(f"模板文件不存在: {_template_path}")
+            self._video_summary_template = '<div>{{ summary_html }}</div>'
+
         # wbi签名相关缓存
         self._wbi_keys_cache = None
         self._wbi_keys_cache_time = 0
         self._wbi_keys_cache_ttl = 3600  # 缓存1小时
+        self._wbi_keys_lock = asyncio.Lock()
 
     @staticmethod
     def _parse_netscape_cookies(cookie_text: str) -> str:
@@ -252,47 +127,53 @@ class BilibiliSummaryPlugin(Star):
     
     async def _get_wbi_keys(self) -> tuple:
         """获取最新的 img_key 和 sub_key"""
-        # 检查缓存是否有效
+        # 快速路径：无锁检查缓存
         current_time = time.time()
         if self._wbi_keys_cache and (current_time - self._wbi_keys_cache_time) < self._wbi_keys_cache_ttl:
             return self._wbi_keys_cache
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Referer': 'https://www.bilibili.com/'
-        }
-        
-        if self.bilibili_cookie_str:
-            headers['Cookie'] = self.bilibili_cookie_str
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get('https://api.bilibili.com/x/web-interface/nav', headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        # wbi_img 在未登录(code=-101)时也会返回，始终尝试提取
-                        wbi_img = data.get('data', {}).get('wbi_img', {})
-                        img_url = wbi_img.get('img_url', '')
-                        sub_url = wbi_img.get('sub_url', '')
+        async with self._wbi_keys_lock:
+            # 获取锁后再次检查缓存（其他协程可能已刷新）
+            current_time = time.time()
+            if self._wbi_keys_cache and (current_time - self._wbi_keys_cache_time) < self._wbi_keys_cache_ttl:
+                return self._wbi_keys_cache
 
-                        # 从URL中提取key
-                        img_key = img_url.rsplit('/', 1)[-1].split('.')[0] if img_url else ''
-                        sub_key = sub_url.rsplit('/', 1)[-1].split('.')[0] if sub_url else ''
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer': 'https://www.bilibili.com/'
+            }
 
-                        if img_key and sub_key:
-                            self._wbi_keys_cache = (img_key, sub_key)
-                            self._wbi_keys_cache_time = current_time
-                            logger.info("成功获取wbi keys")
-                            return (img_key, sub_key)
+            if self.bilibili_cookie_str:
+                headers['Cookie'] = self.bilibili_cookie_str
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://api.bilibili.com/x/web-interface/nav', headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            # wbi_img 在未登录(code=-101)时也会返回，始终尝试提取
+                            wbi_img = data.get('data', {}).get('wbi_img', {})
+                            img_url = wbi_img.get('img_url', '')
+                            sub_url = wbi_img.get('sub_url', '')
+
+                            # 从URL中提取key
+                            img_key = img_url.rsplit('/', 1)[-1].split('.')[0] if img_url else ''
+                            sub_key = sub_url.rsplit('/', 1)[-1].split('.')[0] if sub_url else ''
+
+                            if img_key and sub_key:
+                                self._wbi_keys_cache = (img_key, sub_key)
+                                self._wbi_keys_cache_time = current_time
+                                logger.info("成功获取wbi keys")
+                                return (img_key, sub_key)
+                            else:
+                                logger.warning(f"获取wbi keys失败: 响应中缺少wbi_img数据")
                         else:
-                            logger.warning(f"获取wbi keys失败: 响应中缺少wbi_img数据")
-                    else:
-                        logger.warning(f"获取wbi keys HTTP失败: {response.status}")
-        except Exception as e:
-            logger.error(f"获取wbi keys异常: {type(e).__name__}: {str(e)}")
-        
-        # 如果获取失败，返回空字符串
-        return ('', '')
+                            logger.warning(f"获取wbi keys HTTP失败: {response.status}")
+            except Exception as e:
+                logger.error(f"获取wbi keys异常: {type(e).__name__}: {str(e)}")
+
+            # 如果获取失败，返回空字符串
+            return ('', '')
     
     def _encode_wbi(self, params: dict, img_key: str, sub_key: str) -> dict:
         """为请求参数进行 wbi 签名"""
@@ -503,7 +384,7 @@ class BilibiliSummaryPlugin(Star):
                 "comments_html": comments_html
             }
             
-            image_url = await self.html_render(VIDEO_SUMMARY_TEMPLATE, data)
+            image_url = await self.html_render(self._video_summary_template, data)
             logger.info(f"成功渲染视频总结卡片")
             return image_url
         except Exception as e:
@@ -555,7 +436,33 @@ class BilibiliSummaryPlugin(Star):
 
         return links
 
-    def extract_from_json_component(self, json_component) -> List[str]:
+    def _extract_texts_from_component_list(self, items: list) -> List[str]:
+        """从消息组件列表中提取文本字符串"""
+        texts = []
+        for item in items:
+            if isinstance(item, str):
+                texts.append(item)
+            elif isinstance(item, Comp.Plain):
+                texts.append(item.text)
+            elif hasattr(item, 'text') and item.text:
+                texts.append(str(item.text))
+        return texts
+
+    @staticmethod
+    def _extract_strings_from_json(obj: Any) -> List[str]:
+        """递归提取JSON结构中的所有字符串值"""
+        strings = []
+        if isinstance(obj, dict):
+            for v in obj.values():
+                strings.extend(BilibiliSummaryPlugin._extract_strings_from_json(v))
+        elif isinstance(obj, list):
+            for item in obj:
+                strings.extend(BilibiliSummaryPlugin._extract_strings_from_json(item))
+        elif isinstance(obj, str):
+            strings.append(obj)
+        return strings
+
+    def extract_from_json_component(self, json_component: Any) -> List[str]:
         """从JSON消息组件中提取bilibili链接"""
         bilibili_links = []
 
@@ -570,40 +477,19 @@ class BilibiliSummaryPlugin(Star):
 
             if json_data:
                 # 递归搜索JSON中的所有字符串值
-                def search_json_for_links(obj):
-                    found_links = []
-                    if isinstance(obj, dict):
-                        for key, value in obj.items():
-                            if isinstance(value, str):
-                                b_links = self.extract_links_from_text(value)
-                                found_links.extend(b_links)
-                            elif isinstance(value, (dict, list)):
-                                found_links.extend(search_json_for_links(value))
-                    elif isinstance(obj, list):
-                        for item in obj:
-                            if isinstance(item, str):
-                                b_links = self.extract_links_from_text(item)
-                                found_links.extend(b_links)
-                            elif isinstance(item, (dict, list)):
-                                found_links.extend(search_json_for_links(item))
-                    return found_links
-
-                bilibili_links.extend(search_json_for_links(json_data))
+                for s in self._extract_strings_from_json(json_data):
+                    bilibili_links.extend(self.extract_links_from_text(s))
 
                 # 特别处理bilibili小程序卡片
                 if isinstance(json_data, dict):
-                    meta = json_data.get('meta', {})
-                    if meta:
-                        detail = meta.get('detail_1', {})
-                        if detail:
-                            title = detail.get('title', '')
-                            if '哔哩哔哩' in title or 'bilibili' in title.lower():
-                                qqdocurl = detail.get('qqdocurl', '')
-                                if qqdocurl:
-                                    bilibili_links.extend(self.extract_links_from_text(qqdocurl))
-                                url = detail.get('url', '')
-                                if url:
-                                    bilibili_links.extend(self.extract_links_from_text(url))
+                    detail = json_data.get('meta', {}).get('detail_1', {})
+                    if detail:
+                        title = detail.get('title', '')
+                        if '哔哩哔哩' in title or 'bilibili' in title.lower():
+                            for key in ('qqdocurl', 'url'):
+                                val = detail.get(key, '')
+                                if val:
+                                    bilibili_links.extend(self.extract_links_from_text(val))
 
                 logger.info(f"从JSON组件中提取到Bilibili链接: {bilibili_links}")
 
@@ -614,7 +500,7 @@ class BilibiliSummaryPlugin(Star):
 
         return bilibili_links
 
-    def extract_from_reply(self, event: AstrMessageEvent, reply_component) -> List[str]:
+    def extract_from_reply(self, event: AstrMessageEvent, reply_component: Any) -> List[str]:
         """从引用消息中提取bilibili链接"""
         bilibili_links = []
 
@@ -650,100 +536,57 @@ class BilibiliSummaryPlugin(Star):
 
         return bilibili_links
 
-    def extract_from_forward_message(self, forward_component) -> List[str]:
+    def extract_from_forward_message(self, forward_component: Any) -> List[str]:
         """从转发消息中提取bilibili链接"""
         bilibili_links = []
 
         try:
-            # 转发消息可能包含多种格式的内容
-            logger.info(f"转发消息结构: {forward_component}")
-            logger.info(f"转发消息类型: {type(forward_component)}")
-            logger.info(f"转发消息属性: {dir(forward_component)}")
-
-            # 尝试从转发消息的各种属性中提取链接
             content_sources = []
 
-            # 处理常见的属性
-            if hasattr(forward_component, 'content'):
-                content = forward_component.content
-                if content:
-                    if isinstance(content, str):
-                        content_sources.append(content)
-                    elif isinstance(content, list):
-                        for item in content:
-                            if isinstance(item, str):
-                                content_sources.append(item)
-                            elif isinstance(item, Comp.Plain):
-                                content_sources.append(item.text)
-                            elif hasattr(item, 'text'):
-                                content_sources.append(str(item.text))
-                    else:
-                        content_sources.append(str(content))
-                        
-            if hasattr(forward_component, 'text') and forward_component.text:
-                content_sources.append(str(forward_component.text))
-            if hasattr(forward_component, 'title') and forward_component.title:
-                content_sources.append(str(forward_component.title))
-            if hasattr(forward_component, 'summary') and forward_component.summary:
-                content_sources.append(str(forward_component.summary))
-            if hasattr(forward_component, 'desc') and forward_component.desc:
-                content_sources.append(str(forward_component.desc))
-            if hasattr(forward_component, 'description') and forward_component.description:
-                content_sources.append(str(forward_component.description))
+            # 直接文本属性
+            for attr in ('text', 'title', 'summary', 'desc', 'description'):
+                val = getattr(forward_component, attr, None)
+                if val:
+                    content_sources.append(str(val))
 
-            # 如果转发消息包含节点列表
+            # content属性（str/list/other）
+            if hasattr(forward_component, 'content') and forward_component.content:
+                content = forward_component.content
+                if isinstance(content, str):
+                    content_sources.append(content)
+                elif isinstance(content, list):
+                    content_sources.extend(self._extract_texts_from_component_list(content))
+                else:
+                    content_sources.append(str(content))
+
+            # 节点列表
             if hasattr(forward_component, 'nodes') and forward_component.nodes:
                 for node in forward_component.nodes:
                     try:
-                        if hasattr(node, 'content') and node.content:
-                            if isinstance(node.content, list):
-                                for content_item in node.content:
-                                    if isinstance(content_item, Comp.Plain):
-                                        content_sources.append(content_item.text)
-                                    elif hasattr(content_item, 'text'):
-                                        content_sources.append(str(content_item.text))
-                            elif isinstance(node.content, str):
-                                content_sources.append(node.content)
-                        if hasattr(node, 'message') and node.message:
-                            if isinstance(node.message, list):
-                                for msg_item in node.message:
-                                    if isinstance(msg_item, Comp.Plain):
-                                        content_sources.append(msg_item.text)
-                                    elif hasattr(msg_item, 'text'):
-                                        content_sources.append(str(msg_item.text))
+                        for attr in ('content', 'message'):
+                            val = getattr(node, attr, None)
+                            if val:
+                                if isinstance(val, list):
+                                    content_sources.extend(self._extract_texts_from_component_list(val))
+                                elif isinstance(val, str):
+                                    content_sources.append(val)
                     except Exception as node_e:
                         logger.warning(f"解析转发节点失败: {type(node_e).__name__}: {str(node_e)}")
-                        continue
-            
-            # 如果转发消息包含message列表
+
+            # message列表
             if hasattr(forward_component, 'message') and forward_component.message:
                 if isinstance(forward_component.message, list):
-                    for msg_item in forward_component.message:
-                        if isinstance(msg_item, Comp.Plain):
-                            content_sources.append(msg_item.text)
-                        elif hasattr(msg_item, 'text'):
-                            content_sources.append(str(msg_item.text))
+                    content_sources.extend(
+                        self._extract_texts_from_component_list(forward_component.message))
 
-            # 尝试解析data属性（可能包含JSON数据）
+            # data属性（JSON）
             if hasattr(forward_component, 'data') and forward_component.data:
                 try:
                     data = forward_component.data
                     if isinstance(data, str):
                         try:
                             json_data = json.loads(data)
-                            if isinstance(json_data, dict):
-                                def extract_strings(obj):
-                                    strings = []
-                                    if isinstance(obj, dict):
-                                        for v in obj.values():
-                                            strings.extend(extract_strings(v))
-                                    elif isinstance(obj, list):
-                                        for item in obj:
-                                            strings.extend(extract_strings(item))
-                                    elif isinstance(obj, str):
-                                        strings.append(obj)
-                                    return strings
-                                content_sources.extend(extract_strings(json_data))
+                            content_sources.extend(self._extract_strings_from_json(json_data))
                         except json.JSONDecodeError:
                             content_sources.append(data)
                     elif isinstance(data, dict):
@@ -751,9 +594,7 @@ class BilibiliSummaryPlugin(Star):
                 except Exception as data_e:
                     logger.warning(f"解析转发消息data属性失败: {type(data_e).__name__}: {str(data_e)}")
 
-            logger.info(f"从转发消息中提取到 {len(content_sources)} 个内容源")
-
-            # 在所有内容中查找bilibili链接
+            # 搜索所有收集到的文本
             for content in content_sources:
                 if content:
                     bilibili_links.extend(self.extract_links_from_text(content))
@@ -765,9 +606,6 @@ class BilibiliSummaryPlugin(Star):
 
         # 去重
         bilibili_links = list(dict.fromkeys(bilibili_links))
-
-        logger.info(f"转发消息提取结果 - Bilibili: {bilibili_links}")
-
         return bilibili_links
 
     def parse_bilibili_url(self, input_str: str) -> Optional[str]:
@@ -883,7 +721,7 @@ class BilibiliSummaryPlugin(Star):
             return None
 
     @filter.event_message_type(filter.EventMessageType.ALL)
-    async def video_summary(self, event: AstrMessageEvent):
+    async def video_summary(self, event: AstrMessageEvent) -> AsyncGenerator:
         """自动检测并总结Bilibili视频
 
         当检测到视频链接时，自动触发总结功能并阻止消息传递给AI聊天处理器
@@ -910,7 +748,7 @@ class BilibiliSummaryPlugin(Star):
         async for result in self.process_bilibili_video(event, video_input):
             yield result
     
-    async def process_bilibili_video(self, event: AstrMessageEvent, video_input: str):
+    async def process_bilibili_video(self, event: AstrMessageEvent, video_input: str) -> AsyncGenerator:
         """处理Bilibili视频"""
         # 解析输入的视频标识
         video_id = self.parse_bilibili_url(video_input.strip())
@@ -1076,6 +914,8 @@ class BilibiliSummaryPlugin(Star):
         except OSError as e:
             logger.error(f"文件操作失败: {type(e).__name__}: {str(e)}")
             yield event.plain_result("❌ 文件操作失败，请检查系统权限和磁盘空间")
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"处理请求时发生未预期错误: {type(e).__name__}: {str(e)}")
             yield event.plain_result(f"❌ 处理请求时发生错误，请联系管理员")
@@ -1238,6 +1078,14 @@ class BilibiliSummaryPlugin(Star):
 
     async def download_subtitle(self, subtitle_url: str) -> Optional[str]:
         """下载字幕文件并提取文本"""
+        # 校验字幕URL域名，防止SSRF
+        parsed_url = urlparse(subtitle_url)
+        hostname = parsed_url.hostname or ''
+        allowed_domains = ('.bilibili.com', '.hdslb.com', '.bstarstatic.com')
+        if not any(hostname == d.lstrip('.') or hostname.endswith(d) for d in allowed_domains):
+            logger.warning(f"字幕URL域名不在白名单中: {hostname}")
+            return None
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Referer': 'https://www.bilibili.com/'
@@ -1471,10 +1319,12 @@ class BilibiliSummaryPlugin(Star):
         except (ValueError, KeyError) as e:
             logger.error(f"数据解析失败: {type(e).__name__}: {str(e)}")
             return None
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"调用LLM API时发生未预期错误: {type(e).__name__}: {str(e)}")
             return None
 
-    async def terminate(self):
+    async def terminate(self) -> None:
         """插件卸载时调用"""
         logger.info("Bilibili Summary插件: 已卸载")

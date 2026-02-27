@@ -1,0 +1,131 @@
+<div style="
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Helvetica Neue', Arial, sans-serif;
+    width: 100%;
+    min-height: 100%;
+    background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    padding: 40px;
+    color: #ffffff;
+    box-sizing: border-box;
+">
+    <!-- 顶部标题区域 -->
+    <div style="
+        background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+        border-radius: 20px;
+        padding: 36px;
+        margin-bottom: 32px;
+        box-shadow: 0 8px 24px rgba(233,69,96,0.4);
+    ">
+        <div style="
+            font-size: 42px;
+            font-weight: bold;
+            line-height: 1.5;
+            margin-bottom: 24px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        ">{{ platform_icon }} {{ title }}</div>
+
+        <div style="
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 28px;
+            opacity: 0.95;
+        ">
+            <span style="
+                background: rgba(255,255,255,0.25);
+                padding: 10px 22px;
+                border-radius: 30px;
+            ">👤 {{ owner }}</span>
+            <span style="
+                background: rgba(255,255,255,0.25);
+                padding: 10px 22px;
+                border-radius: 30px;
+            ">⏱️ {{ duration }}</span>
+            <span style="
+                background: rgba(255,255,255,0.25);
+                padding: 10px 22px;
+                border-radius: 30px;
+            ">👀 {{ views }}</span>
+            <span style="
+                background: rgba(255,255,255,0.25);
+                padding: 10px 22px;
+                border-radius: 30px;
+            ">👍 {{ likes }}</span>
+        </div>
+    </div>
+
+    <!-- 总结区域 -->
+    <div style="
+        background: rgba(255,255,255,0.08);
+        border-radius: 20px;
+        padding: 36px;
+        margin-bottom: 32px;
+        border: 2px solid rgba(255,255,255,0.1);
+    ">
+        <div style="
+            font-size: 38px;
+            font-weight: bold;
+            margin-bottom: 28px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid #e94560;
+            color: #e94560;
+        ">📋 内容总结</div>
+
+        <div style="
+            font-size: 32px;
+            line-height: 2;
+            word-wrap: break-word;
+            color: #f0f0f0;
+        ">{{ summary_html }}</div>
+    </div>
+
+    <!-- 热门评论区域 -->
+    {% if comments_html %}
+    <div style="
+        background: rgba(255,255,255,0.08);
+        border-radius: 20px;
+        padding: 36px;
+        margin-bottom: 32px;
+        border: 2px solid rgba(255,255,255,0.1);
+    ">
+        <div style="
+            font-size: 38px;
+            font-weight: bold;
+            margin-bottom: 28px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid #5b86e5;
+            color: #5b86e5;
+        ">💬 热门评论</div>
+
+        <div style="
+            font-size: 30px;
+            line-height: 1.9;
+            word-wrap: break-word;
+            color: #d0d0d0;
+        ">{{ comments_html }}</div>
+    </div>
+    {% endif %}
+
+    <!-- 底部统计区域 -->
+    <div style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 28px;
+        color: rgba(255,255,255,0.8);
+        padding: 20px 8px;
+        border-top: 2px solid rgba(255,255,255,0.1);
+    ">
+        <span style="
+            background: rgba(233,69,96,0.2);
+            padding: 14px 28px;
+            border-radius: 30px;
+            color: #ff6b6b;
+        ">📊 字幕：{{ subtitle_length }} 字</span>
+        <span style="
+            background: rgba(233,69,96,0.2);
+            padding: 14px 28px;
+            border-radius: 30px;
+            color: #ff6b6b;
+        ">📝 总结：{{ summary_length }} 字</span>
+    </div>
+</div>
