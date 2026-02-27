@@ -154,10 +154,10 @@ VIDEO_SUMMARY_TEMPLATE = '''
 
 @register(
     "astrbot_plugin_bilibili_summary",
-    "VincenttHo",
-    "Bilibili视频字幕总结插件。自动检测消息中的B站视频链接，获取字幕和热门评论并生成内容总结。支持无字幕视频的音频转文字功能",
+    "蛇叔",
+    "自动检测消息中的 B站视频链接，获取字幕和热门评论并使用 LLM 生成内容总结。",
     "1.4.0",
-    "https://github.com/VincenttHo/astrbot_plugin_bilibili_summary"
+    "https://github.com/DIO-goo/astrbot_plugin_bilibili_summary"
 )
 class BilibiliSummaryPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
